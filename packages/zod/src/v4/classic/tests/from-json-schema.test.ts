@@ -307,6 +307,30 @@ test("const schema", () => {
   expect(() => schema.parse("world")).toThrow();
 });
 
+test("enum and const keep string and number constraints", () => {
+  const shortEnum = fromJSONSchema({ type: "string", enum: ["a"], minLength: 2 });
+  expect(shortEnum.safeParse("a").success).toBe(false);
+  const shortConst = fromJSONSchema({ type: "string", const: "a", minLength: 2 });
+  expect(shortConst.safeParse("a").success).toBe(false);
+  const patterned = fromJSONSchema({ type: "string", enum: ["alpha", "beta"], pattern: "^a" });
+  expect(patterned.parse("alpha")).toBe("alpha");
+  expect(patterned.safeParse("beta").success).toBe(false);
+  const bounded = fromJSONSchema({ type: "number", enum: [1, 5], minimum: 3 });
+  expect(bounded.parse(5)).toBe(5);
+  expect(bounded.safeParse(1).success).toBe(false);
+  const numericConst = fromJSONSchema({ type: "number", const: 2, maximum: 1 });
+  expect(numericConst.safeParse(2).success).toBe(false);
+  const typedEnum = fromJSONSchema({ type: "string", enum: ["ok", 2], minLength: 1 });
+  expect(typedEnum.parse("ok")).toBe("ok");
+  expect(typedEnum.safeParse(2).success).toBe(false);
+  expect(fromJSONSchema({ enum: ["a", 1] }).parse(1)).toBe(1);
+  const untyped = fromJSONSchema({ enum: ["a", 1], minLength: 2 });
+  expect(untyped.parse("a")).toBe("a");
+  const integer = fromJSONSchema({ type: "integer", enum: [1, 1.5], minimum: 1 });
+  expect(integer.parse(1)).toBe(1);
+  expect(integer.safeParse(1.5).success).toBe(false);
+});
+
 test("anyOf schema", () => {
   const schema = fromJSONSchema({
     anyOf: [{ type: "string" }, { type: "number" }],
