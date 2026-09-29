@@ -813,6 +813,21 @@ function convertSchema(schema: JSONSchema.JSONSchema | boolean, ctx: ConversionC
   // Convert base schema first (ignoring composition keywords)
   let baseSchema = convertBaseSchema(schema, ctx);
   const hasExplicitType = schema.type || schema.enum !== undefined || schema.const !== undefined;
+  const hasValueConstraint =
+    schema.type === "string"
+      ? schema.minLength !== undefined ||
+        schema.maxLength !== undefined ||
+        schema.pattern !== undefined ||
+        schema.format !== undefined
+      : (schema.type === "number" || schema.type === "integer") &&
+        (schema.minimum !== undefined ||
+          schema.maximum !== undefined ||
+          schema.exclusiveMinimum !== undefined ||
+          schema.exclusiveMaximum !== undefined ||
+          schema.multipleOf !== undefined);
+  if (schema.$ref === undefined && (schema.enum !== undefined || schema.const !== undefined) && hasValueConstraint) {
+    baseSchema = z.intersection(baseSchema, convertBaseSchema({ ...schema, enum: undefined, const: undefined }, ctx));
+  }
 
   // Process composition keywords LAST (they can appear together)
 
