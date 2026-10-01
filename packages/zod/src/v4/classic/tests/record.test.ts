@@ -883,3 +883,44 @@ test("a finite __proto__ key is ignored whether present or missing", () => {
   expect(Object.prototype.hasOwnProperty.call(parsed, "__proto__")).toBe(false);
   expect(schema.parse(Object.fromEntries([["__proto__", 123]]))).toEqual({});
 });
+
+test("record checks an own __proto__ against a constrained key schema", () => {
+  const schema = z.record(z.string().regex(/^(fr|de)$/), z.string());
+  const result = schema.safeParse(JSON.parse('{"__proto__":"x","fr":"y"}'));
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    expect(result.error.issues[0]?.code).toBe("invalid_key");
+    expect(result.error.issues[0]?.path).toEqual(["__proto__"]);
+  }
+});
+
+test("record refinements run for __proto__ without copying it", () => {
+  const keys: string[] = [];
+  const schema = z.record(
+    z.string().refine((key) => {
+      keys.push(key);
+      return true;
+    }),
+    z.unknown()
+  );
+  const result = schema.parse(JSON.parse('{"__proto__":{"polluted":true},"fr":"y"}'));
+  expect(keys).toContain("__proto__");
+  expect(result).toEqual({ fr: "y" });
+  expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+  expect(Object.prototype.hasOwnProperty.call(result, "__proto__")).toBe(false);
+});
+
+test("loose record does not copy an invalid __proto__ key", () => {
+  const schema = z.record(z.string().regex(/^fr$/), z.unknown(), { mode: "loose" });
+  const result = schema.parse(JSON.parse('{"__proto__":{"polluted":true},"fr":"y"}'));
+  expect(result).toEqual({ fr: "y" });
+  expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+});
+
+test("record does not transform a reserved input key into output", () => {
+  const schema = z.record(
+    z.string().transform((key) => (key === "__proto__" ? "safe" : key)),
+    z.string()
+  );
+  expect(schema.parse(JSON.parse('{"__proto__":"x","fr":"y"}'))).toEqual({ fr: "y" });
+});
